@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",         // for production builds
+    // "jsx": "react-jsxdev",   // optional: use this for dev builds
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true       // optional, helpful to avoid stray 3rd-party type issues
+  }
+}
