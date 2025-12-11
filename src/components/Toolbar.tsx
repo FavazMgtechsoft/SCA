@@ -5,9 +5,20 @@ interface ToolbarProps {
   onToggleSidebar: () => void;
   sidebarVisible: boolean;
   onOpenFile: () => void;
+  onGenerateAnnotations: () => void;
+  isGenerating: boolean;
+  hasAnnotations: boolean;
 }
 
-export function Toolbar({ currentFilePath, onToggleSidebar, sidebarVisible, onOpenFile }: ToolbarProps) {
+export function Toolbar({ 
+  currentFilePath, 
+  onToggleSidebar, 
+  sidebarVisible, 
+  onOpenFile,
+  onGenerateAnnotations,
+  isGenerating,
+  hasAnnotations
+}: ToolbarProps) {
   return (
     <div className="h-[50px] bg-[#1a1d23] border-b border-[#2d3139] flex items-center justify-between px-4">
       {/* Left side - Logo and Title */}
@@ -31,11 +42,28 @@ export function Toolbar({ currentFilePath, onToggleSidebar, sidebarVisible, onOp
         </button>
         
         <button
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-white hover:bg-[#2d3139] rounded transition-colors"
+          onClick={onGenerateAnnotations}
+          disabled={isGenerating || !currentFilePath}
+          className={`flex items-center gap-2 px-3 py-1.5 text-sm text-white rounded transition-colors ${
+            isGenerating || !currentFilePath
+              ? 'opacity-50 cursor-not-allowed'
+              : hasAnnotations
+              ? 'bg-[#16a34a] hover:bg-[#15803d]'
+              : 'hover:bg-[#2d3139]'
+          }`}
           title="Generate Annotations"
         >
-          <Sparkles size={16} />
-          <span>Generate Annotations</span>
+          {isGenerating ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Generating...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles size={16} />
+              <span>Generate Annotations</span>
+            </>
+          )}
         </button>
         
         <button
@@ -48,7 +76,7 @@ export function Toolbar({ currentFilePath, onToggleSidebar, sidebarVisible, onOp
         
         <button
           onClick={onOpenFile}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-white bg-[#2563eb !important] hover:bg-[#1d4ed8] rounded transition-colors"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm text-white bg-[#2563eb] hover:bg-[#1d4ed8] rounded transition-colors"
           title="Export"
         >
           <Upload size={16} />

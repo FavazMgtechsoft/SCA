@@ -21,6 +21,12 @@ export interface OpenFile {
   handle?: FileSystemFileHandle;
 }
 
+export interface Annotation {
+  line: number;
+  suggestion: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'edited';
+}
+
 export default function App() {
   const [rootFolder, setRootFolder] = useState<FileNode | null>(null);
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
@@ -28,8 +34,18 @@ export default function App() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [aiPanelVisible, setAiPanelVisible] = useState(true);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  // Load state from localStorage on mount
+  // Mock annotations data
+  const mockAnnotations: Annotation[] = [
+    { line: 3, suggestion: '__ASTREE_octagon_pack(wheel_speed_fl, wheel_speed_fr, max_ws, vehicle_speed);', status: 'pending' },
+    { line: 8, suggestion: '__ASTREE_assert(vehicle_speed - max_ws >= -10);', status: 'pending' },
+    { line: 14, suggestion: '__ASTREE_assert(max_ws - wheel_speed_fl >= 0);', status: 'pending' },
+    { line: 19, suggestion: '__ASTREE_assert(max_ws - wheel_speed_fr >= 0);', status: 'pending' },
+    { line: 24, suggestion: '__ASTREE_assert(vehicle_speed - max_ws <= 5);', status: 'pending' }
+  ];
+
   useEffect(() => {
     const savedOpenFiles = localStorage.getItem('openFiles');
     const savedActiveFile = localStorage.getItem('activeFile');
@@ -47,7 +63,6 @@ export default function App() {
     }
   }, []);
 
-  // Save state to localStorage
   useEffect(() => {
     if (openFiles.length > 0) {
       localStorage.setItem('openFiles', JSON.stringify(openFiles.map(f => ({
@@ -68,10 +83,55 @@ export default function App() {
     }
   }, [activeFilePath]);
 
+  const handleGenerateAnnotations = () => {
+    if (!activeFilePath) {
+      alert('Please open a file first');
+      return;
+    }
+    
+    setIsGenerating(true);
+    
+    // Simulate API call
+    setTimeout(() => {
+      setAnnotations(mockAnnotations);
+      setIsGenerating(false);
+    }, 1500);
+  };
+
+  const handleAnnotationClick = (annotation: Annotation) => {
+    // This will be handled by the Editor component
+  };
+
+  const handleAcceptAnnotation = (line: number) => {
+    const annotation = annotations.find(ann => ann.line === line);
+    if (!annotation) return;
+
+    // Find the file and update its content with the suggestion
+    const file = openFiles.find(f => f.path === activeFilePath);
+    if (file) {
+      const lines = file.content.split('\n');
+      // Insert the suggestion at the specified line
+      lines.splice(line - 1, 0, '    ' + annotation.suggestion);
+      const newContent = lines.join('\n');
+      
+      handleContentChange(activeFilePath!, newContent);
+    }
+
+    // Mark annotation as accepted
+    setAnnotations(annotations.map(ann => 
+      ann.line === line ? { ...ann, status: 'accepted' } : ann
+    ));
+  };
+
+  const handleRejectAnnotation = (line: number) => {
+    setAnnotations(annotations.map(ann => 
+      ann.line === line ? { ...ann, status: 'rejected' } : ann
+    ));
+  };
+
   const handleFolderImport = async () => {
     try {
-      // Check if we're in an iframe or if File System Access API is blocked
-      // @ts-ignore - File System Access API
+      // @ts-ignore
       if (typeof window.showDirectoryPicker === 'function' && window.self === window.top) {
         try {
           // @ts-ignore
@@ -80,15 +140,12 @@ export default function App() {
           setRootFolder(folderTree);
           return;
         } catch (e: any) {
-          // If user cancels, don't fall back to file input
           if (e.name === 'AbortError') {
             return;
           }
-          // Otherwise fall through to file input method
         }
       }
       
-      // Fallback: Use traditional file input
       useFallbackFolderImport();
     } catch (error) {
       console.error('Error importing folder:', error);
@@ -97,10 +154,9 @@ export default function App() {
   };
 
   const useFallbackFolderImport = () => {
-    // Create a hidden file input element
     const input = document.createElement('input');
     input.type = 'file';
-    // @ts-ignore - webkitdirectory is not in TypeScript types
+    // @ts-ignore
     input.webkitdirectory = true;
     input.multiple = true;
     
@@ -108,7 +164,6 @@ export default function App() {
       const files = Array.from(e.target.files || []) as File[];
       if (files.length === 0) return;
       
-      // Build folder tree from files
       const folderTree = buildFolderTreeFromFiles(files);
       setRootFolder(folderTree);
     };
@@ -117,7 +172,6 @@ export default function App() {
   };
 
   const buildFolderTreeFromFiles = (files: File[]): FileNode => {
-    // Get the root folder name from the first file's path
     const firstPath = (files[0] as any).webkitRelativePath || files[0].name;
     const rootName = firstPath.split('/')[0] || 'project';
     
@@ -131,12 +185,10 @@ export default function App() {
     const folderMap = new Map<string, FileNode>();
     folderMap.set(rootName, root);
     
-    // Build the tree structure
     files.forEach((file: any) => {
       const relativePath = file.webkitRelativePath || file.name;
       const parts = relativePath.split('/');
       
-      // Create folder nodes for each part
       let currentPath = rootName;
       for (let i = 1; i < parts.length - 1; i++) {
         const folderName = parts[i];
@@ -161,7 +213,6 @@ export default function App() {
         currentPath = folderPath;
       }
       
-      // Add the file
       const fileName = parts[parts.length - 1];
       const filePath = `${currentPath}/${fileName}`;
       const fileNode: FileNode = {
@@ -170,7 +221,6 @@ export default function App() {
         type: 'file',
       };
       
-      // Store the file object for later reading
       (fileNode as any).fileObject = file;
       
       const parent = folderMap.get(currentPath);
@@ -179,7 +229,6 @@ export default function App() {
       }
     });
     
-    // Sort all children (folders first, then alphabetically)
     const sortChildren = (node: FileNode) => {
       if (node.children) {
         node.children.sort((a, b) => {
@@ -215,7 +264,6 @@ export default function App() {
       }
     }
 
-    // Sort: folders first, then files
     children.sort((a, b) => {
       if (a.type === b.type) return a.name.localeCompare(b.name);
       return a.type === 'folder' ? -1 : 1;
@@ -228,115 +276,108 @@ export default function App() {
       children,
     };
   };
-const handleFileImport = async () => {
-  try {
-    // Check native File Picker support
-    // @ts-ignore
-    if (typeof window.showOpenFilePicker === "function" && window.self === window.top) {
-      try {
-        // @ts-ignore
-        const [handle] = await window.showOpenFilePicker({
-          multiple: false,
-          types: [
-            {
-              description: "C / C++ Source Files",
-              accept: { "text/*": [".c", ".cpp", ".h", ".hpp"] }
-            }
-          ]
-        });
 
-        const file = await handle.getFile();
-        const content = await file.text();
-
-        const fileNode: FileNode = {
-          name: file.name,
-          path: file.name,
-          type: "file",
-          handle: handle
-        };
-
-        // If no project exists → create virtual root
-        if (!rootFolder) {
-          setRootFolder({
-            name: "Project",
-            path: "Project",
-            type: "folder",
-            children: [fileNode]
+  const handleFileImport = async () => {
+    try {
+      // @ts-ignore
+      if (typeof window.showOpenFilePicker === "function" && window.self === window.top) {
+        try {
+          // @ts-ignore
+          const [handle] = await window.showOpenFilePicker({
+            multiple: false,
+            types: [
+              {
+                description: "C / C++ Source Files",
+                accept: { "text/*": [".c", ".cpp", ".h", ".hpp"] }
+              }
+            ]
           });
-        } else {
-          // Add into rootFolder
-          setRootFolder({
-            ...rootFolder,
-            children: [...(rootFolder.children || []), fileNode]
-          });
+
+          const file = await handle.getFile();
+          const content = await file.text();
+
+          const fileNode: FileNode = {
+            name: file.name,
+            path: file.name,
+            type: "file",
+            handle: handle
+          };
+
+          if (!rootFolder) {
+            setRootFolder({
+              name: "Project",
+              path: "Project",
+              type: "folder",
+              children: [fileNode]
+            });
+          } else {
+            setRootFolder({
+              ...rootFolder,
+              children: [...(rootFolder.children || []), fileNode]
+            });
+          }
+
+          handleFileOpen(fileNode);
+          return;
+        } catch (e: any) {
+          if (e.name === "AbortError") return;
         }
-
-        // Open immediately
-        handleFileOpen(fileNode);
-        return;
-      } catch (e: any) {
-        if (e.name === "AbortError") return;
       }
+
+      useFallbackSingleFileImport();
+
+    } catch (err) {
+      console.error("Error importing file:", err);
+      alert("Error importing file: " + (err as Error).message);
     }
-
-    // ---- FALLBACK ----
-    useFallbackSingleFileImport();
-
-  } catch (err) {
-    console.error("Error importing file:", err);
-    alert("Error importing file: " + (err as Error).message);
-  }
-};
-
-const useFallbackSingleFileImport = () => {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".c,.cpp,.h,.hpp";
-
-  input.onchange = async (e: any) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const content = await file.text();
-
-    const fileNode: FileNode = {
-      name: file.name,
-      path: file.name,
-      type: "file",
-    };
-
-    (fileNode as any).fileObject = file;
-
-    // Create virtual root if needed
-    if (!rootFolder) {
-      setRootFolder({
-        name: "Project",
-        path: "Project",
-        type: "folder",
-        children: [fileNode]
-      });
-    } else {
-      setRootFolder({
-        ...rootFolder,
-        children: [...(rootFolder.children || []), fileNode]
-      });
-    }
-
-    handleFileOpen(fileNode);
   };
 
-  input.click();
-};
+  const useFallbackSingleFileImport = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".c,.cpp,.h,.hpp";
+
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const content = await file.text();
+
+      const fileNode: FileNode = {
+        name: file.name,
+        path: file.name,
+        type: "file",
+      };
+
+      (fileNode as any).fileObject = file;
+
+      if (!rootFolder) {
+        setRootFolder({
+          name: "Project",
+          path: "Project",
+          type: "folder",
+          children: [fileNode]
+        });
+      } else {
+        setRootFolder({
+          ...rootFolder,
+          children: [...(rootFolder.children || []), fileNode]
+        });
+      }
+
+      handleFileOpen(fileNode);
+    };
+
+    input.click();
+  };
 
   const handleFileOpen = async (fileNode: FileNode) => {
-    // Check if file is already open
     const existingFile = openFiles.find(f => f.path === fileNode.path);
     if (existingFile) {
       setActiveFilePath(fileNode.path);
       return;
     }
 
-    // Read file content
     try {
       if (fileNode.handle) {
         const file = await fileNode.handle.getFile();
@@ -375,6 +416,8 @@ const useFallbackSingleFileImport = () => {
     
     if (activeFilePath === filePath) {
       setActiveFilePath(updatedFiles.length > 0 ? updatedFiles[updatedFiles.length - 1].path : null);
+      // Clear annotations when closing file
+      setAnnotations([]);
     }
   };
 
@@ -386,123 +429,124 @@ const useFallbackSingleFileImport = () => {
 
   const activeFile = openFiles.find(f => f.path === activeFilePath);
   const activeFileExtension = activeFile?.name.split('.').pop() || 'c';
+
   const handleDrop = async (event: React.DragEvent) => {
-  event.preventDefault();
+    event.preventDefault();
 
-  const items = event.dataTransfer.items;
-  if (!items || items.length === 0) return;
+    const items = event.dataTransfer.items;
+    if (!items || items.length === 0) return;
 
-  const entries: any[] = [];
+    const entries: any[] = [];
 
-  for (let i = 0; i < items.length; i++) {
-    // @ts-ignore - webkitGetAsEntry
-    const entry = items[i].webkitGetAsEntry();
-    if (entry) entries.push(entry);
-  }
+    for (let i = 0; i < items.length; i++) {
+      // @ts-ignore
+      const entry = items[i].webkitGetAsEntry();
+      if (entry) entries.push(entry);
+    }
 
-  const fileNodes: FileNode[] = [];
+    const fileNodes: FileNode[] = [];
 
-  // Process each dragged item
-  for (const entry of entries) {
-    const node = await traverseEntry(entry, "");
-    if (node) fileNodes.push(node);
-  }
+    for (const entry of entries) {
+      const node = await traverseEntry(entry, "");
+      if (node) fileNodes.push(node);
+    }
 
-  if (fileNodes.length === 0) return;
+    if (fileNodes.length === 0) return;
 
-  // If dragging a single folder or file
-  if (fileNodes.length === 1 && fileNodes[0].type === "folder") {
-    setRootFolder(fileNodes[0]);
-  } else {
-    // Many files dropped → create virtual root
-    setRootFolder({
-      name: "Project",
-      path: "Project",
-      type: "folder",
-      children: fileNodes,
-    });
-  }
-
-  // Auto-open first file if it's a C/C++ file
-  const firstFile = findFirstCodeFile(fileNodes);
-  if (firstFile) handleFileOpen(firstFile);
-};
-const traverseEntry = async (entry: any, parentPath: string): Promise<FileNode | null> => {
-  const fullPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
-
-  if (entry.isFile) {
-    return new Promise<FileNode>((resolve) => {
-      entry.file((file: File) => {
-        const node: FileNode = {
-          name: file.name,
-          path: fullPath,
-          type: "file"
-        };
-        (node as any).fileObject = file; // store for reading
-        resolve(node);
+    if (fileNodes.length === 1 && fileNodes[0].type === "folder") {
+      setRootFolder(fileNodes[0]);
+    } else {
+      setRootFolder({
+        name: "Project",
+        path: "Project",
+        type: "folder",
+        children: fileNodes,
       });
-    });
-  }
+    }
 
-  if (entry.isDirectory) {
-    const children: FileNode[] = [];
+    const firstFile = findFirstCodeFile(fileNodes);
+    if (firstFile) handleFileOpen(firstFile);
+  };
 
-    const reader = entry.createReader();
+  const traverseEntry = async (entry: any, parentPath: string): Promise<FileNode | null> => {
+    const fullPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
 
-    const readEntries = (): Promise<any[]> =>
-      new Promise((resolve) => reader.readEntries(resolve));
+    if (entry.isFile) {
+      return new Promise<FileNode>((resolve) => {
+        entry.file((file: File) => {
+          const node: FileNode = {
+            name: file.name,
+            path: fullPath,
+            type: "file"
+          };
+          (node as any).fileObject = file;
+          resolve(node);
+        });
+      });
+    }
 
-    let batch = await readEntries();
-    while (batch.length > 0) {
-      for (const subEntry of batch) {
-        const child = await traverseEntry(subEntry, fullPath);
-        if (child) children.push(child);
+    if (entry.isDirectory) {
+      const children: FileNode[] = [];
+
+      const reader = entry.createReader();
+
+      const readEntries = (): Promise<any[]> =>
+        new Promise((resolve) => reader.readEntries(resolve));
+
+      let batch = await readEntries();
+      while (batch.length > 0) {
+        for (const subEntry of batch) {
+          const child = await traverseEntry(subEntry, fullPath);
+          if (child) children.push(child);
+        }
+        batch = await readEntries();
       }
-      batch = await readEntries();
+
+      children.sort((a, b) => {
+        if (a.type === b.type) return a.name.localeCompare(b.name);
+        return a.type === "folder" ? -1 : 1;
+      });
+
+      return {
+        name: entry.name,
+        path: fullPath,
+        type: "folder",
+        children,
+      };
     }
 
-    // Sort folders → files
-    children.sort((a, b) => {
-      if (a.type === b.type) return a.name.localeCompare(b.name);
-      return a.type === "folder" ? -1 : 1;
-    });
+    return null;
+  };
 
-    return {
-      name: entry.name,
-      path: fullPath,
-      type: "folder",
-      children,
-    };
-  }
-
-  return null;
-};
-const findFirstCodeFile = (nodes: FileNode[]): FileNode | null => {
-  for (const node of nodes) {
-    if (node.type === "file" &&
-        (node.name.endsWith(".c") || node.name.endsWith(".cpp") ||
-         node.name.endsWith(".h") || node.name.endsWith(".hpp"))) {
-      return node;
+  const findFirstCodeFile = (nodes: FileNode[]): FileNode | null => {
+    for (const node of nodes) {
+      if (node.type === "file" &&
+          (node.name.endsWith(".c") || node.name.endsWith(".cpp") ||
+           node.name.endsWith(".h") || node.name.endsWith(".hpp"))) {
+        return node;
+      }
+      if (node.type === "folder" && node.children) {
+        const found = findFirstCodeFile(node.children);
+        if (found) return found;
+      }
     }
-    if (node.type === "folder" && node.children) {
-      const found = findFirstCodeFile(node.children);
-      if (found) return found;
-    }
-  }
-  return null;
-};
-
+    return null;
+  };
 
   return (
-    <div className="flex flex-col h-screen bg-[#1e1e1e] text-[#cccccc] overflow-hidden"
-    onDragOver={(e) => e.preventDefault()}
-    onDrop={handleDrop}
+    <div 
+      className="flex flex-col h-screen bg-[#1e1e1e] text-[#cccccc] overflow-hidden"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
     >
       <Toolbar
         currentFilePath={activeFilePath || ''}
         onToggleSidebar={() => setSidebarVisible(!sidebarVisible)}
         sidebarVisible={sidebarVisible}
         onOpenFile={handleFolderImport}
+        onGenerateAnnotations={handleGenerateAnnotations}
+        isGenerating={isGenerating}
+        hasAnnotations={annotations.length > 0}
       />
       
       <div className="flex flex-1 overflow-hidden">
@@ -530,6 +574,9 @@ const findFirstCodeFile = (nodes: FileNode[]): FileNode | null => {
                   file={activeFile}
                   onContentChange={handleContentChange}
                   onCursorChange={setCursorPosition}
+                  annotations={annotations}
+                  onAcceptAnnotation={handleAcceptAnnotation}
+                  onRejectAnnotation={handleRejectAnnotation}
                 />
               )}
             </>
@@ -545,6 +592,10 @@ const findFirstCodeFile = (nodes: FileNode[]): FileNode | null => {
           <AIPanel
             isVisible={aiPanelVisible}
             onToggle={() => setAiPanelVisible(!aiPanelVisible)}
+            annotations={annotations}
+            onAnnotationClick={handleAnnotationClick}
+            onAcceptAnnotation={handleAcceptAnnotation}
+            onRejectAnnotation={handleRejectAnnotation}
           />
         </div>
       </div>
