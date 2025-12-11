@@ -20,10 +20,10 @@ interface TooltipState {
   suggestion: string;
 }
 
-export function Editor({ 
-  file, 
-  onContentChange, 
-  onCursorChange, 
+export function Editor({
+  file,
+  onContentChange,
+  onCursorChange,
   annotations,
   onAcceptAnnotation,
   onRejectAnnotation
@@ -42,9 +42,10 @@ export function Editor({
   });
 
   useEffect(() => {
-    if (editorRef.current && monacoRef.current && annotations.length > 0) {
+    if (editorRef.current && monacoRef.current) {
       updateDecorations();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [annotations, file.content]);
 
   const updateDecorations = () => {
@@ -52,31 +53,53 @@ export function Editor({
 
     const newDecorations: any[] = [];
 
-    annotations.forEach(annotation => {
-      const model = editorRef.current.getModel();
-      if (!model) return;
+    const model = editorRef.current.getModel();
+    if (!model) return;
 
-      const lineContent = model.getLineContent(annotation.line);
-      const lineLength = lineContent.length;
+    annotations.forEach(annotation => {
+      const lineNumber = annotation.line;
+      const lineContent = model.getLineContent(lineNumber) || '';
+      const lineLength = Math.max(1, lineContent.length);
 
       if (annotation.status === 'pending') {
-        // Add light blue/cyan background highlight for the entire line content
+        // light cyan inline highlight for pending suggestion
         newDecorations.push({
-          range: new monacoRef.current.Range(annotation.line, 1, annotation.line, lineLength + 1),
+          range: new monacoRef.current.Range(lineNumber, 1, lineNumber, lineLength + 1),
           options: {
             inlineClassName: 'suggestion-inline-highlight',
             glyphMarginClassName: 'suggestion-glyph-margin',
             linesDecorationsClassName: 'suggestion-line-decoration'
           }
         });
-      } else if (annotation.status === 'accepted') {
-        // Add green indicator for accepted
+      } else if (annotation.status === 'accepted' || annotation.status === 'edited') {
+        // whole-line blue background for accepted/edited
         newDecorations.push({
-          range: new monacoRef.current.Range(annotation.line, 1, annotation.line, 1),
+          range: new monacoRef.current.Range(lineNumber, 1, lineNumber, lineLength + 1),
           options: {
-            isWholeLine: false,
-            afterContentClassName: 'accepted-annotation-badge',
-            glyphMarginClassName: 'accepted-glyph-margin'
+            isWholeLine: true,
+            className: 'accepted-line-highlight',
+            glyphMarginClassName: annotation.status === 'accepted' ? 'accepted-glyph-margin' : 'suggestion-glyph-margin',
+            afterContentClassName: annotation.status === 'accepted' ? 'accepted-annotation-badge' : undefined
+          }
+        });
+
+        // keep a glyph margin badge for accepted as before (adds check)
+        if (annotation.status === 'accepted') {
+          newDecorations.push({
+            range: new monacoRef.current.Range(lineNumber, 1, lineNumber, 1),
+            options: {
+              isWholeLine: false,
+              glyphMarginClassName: 'accepted-glyph-margin'
+            }
+          });
+        }
+      } else if (annotation.status === 'rejected') {
+        // optionally mark rejected with subtle decoration (no special BG)
+        newDecorations.push({
+          range: new monacoRef.current.Range(lineNumber, 1, lineNumber, lineLength + 1),
+          options: {
+            inlineClassName: 'rejected-inline',
+            glyphMarginClassName: 'rejected-glyph-margin'
           }
         });
       }
@@ -107,10 +130,13 @@ export function Editor({
     monacoRef.current = monaco;
 
     // Add custom CSS for annotations
-    const style = document.createElement('style');
-    style.innerHTML = `
+    const styleId = 'editor-annotation-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.innerHTML = `
       .suggestion-inline-highlight {
-        background: rgba(100, 181, 246, 0.25) !important;
+        background: rgba(100, 181, 246, 0.18) !important;
         border-radius: 2px;
       }
       
@@ -121,12 +147,16 @@ export function Editor({
         cursor: pointer;
       }
       
-.suggestion-glyph-margin::before {
+      .suggestion-glyph-margin::before {
         content: '💡';
         font-size: 14px;
         position: absolute;
         left: 2px;
         cursor: pointer;
+      }
+
+      .rejected-inline {
+        opacity: 0.9;
       }
       
       .accepted-glyph-margin {
@@ -150,12 +180,26 @@ export function Editor({
         font-size: 11px;
         font-weight: bold;
         margin-left: 8px;
-        background: rgba(22, 163, 74, 0.1);
+        background: rgba(22, 163, 74, 0.06);
         padding: 2px 6px;
         border-radius: 3px;
       }
+
+      /* NEW: whole-line highlight for accepted / edited */
+      .accepted-line-highlight {
+background: rgba(20, 149, 255, 1) !important; 
+      }
+
+      .rejected-glyph-margin::before {
+        content: '✗';
+        color: #ef4444;
+        font-size: 12px;
+        position: absolute;
+        left: 3px;
+      }
     `;
-    document.head.appendChild(style);
+      document.head.appendChild(style);
+    }
 
     monaco.editor.defineTheme('vscode-dark-custom', {
       base: 'vs-dark',
@@ -215,16 +259,17 @@ export function Editor({
                 suggestion: annotation.suggestion
               });
             }
+            return;
           }
         }
-      } else {
-        if (tooltip.visible) {
-          setTooltip({ ...tooltip, visible: false });
-        }
+      }
+
+      if (tooltip.visible) {
+        setTooltip({ ...tooltip, visible: false });
       }
     });
 
-    // Update decorations when annotations change
+    // initial decorations
     if (annotations.length > 0) {
       updateDecorations();
     }
@@ -250,13 +295,13 @@ export function Editor({
           </button>
         </div>
       )}
-      
+
       {/* Custom Tooltip Popup */}
       {tooltip.visible && (
-        <div 
+        <div
           className="absolute z-50 bg-[#2d2d30] border border-[#3b82f6] rounded-lg shadow-2xl p-4 max-w-md"
-          style={{ 
-            left: `${tooltip.x}px`, 
+          style={{
+            left: `${tooltip.x}px`,
             top: `${tooltip.y}px`,
             transform: 'translateY(-50%)'
           }}
@@ -267,13 +312,13 @@ export function Editor({
               <span className="text-xs text-[#858585]">Line {tooltip.line}</span>
             </div>
           </div>
-          
+
           <div className="bg-[#1e1e1e] border border-[#3e3e42] rounded p-2 mb-3">
-            <code className="text-xs text-[#d4d4d4] font-mono break-all">
+            <code className="text-xs text-[red] font-mono break-all">
               {tooltip.suggestion}
             </code>
           </div>
-          
+
           <div className="flex gap-2">
             <button
               onClick={() => {
@@ -298,7 +343,7 @@ export function Editor({
           </div>
         </div>
       )}
-      
+
       <MonacoEditor
         height="100%"
         language={file.name.endsWith('.cpp') || file.name.endsWith('.hpp') ? 'cpp' : 'c'}

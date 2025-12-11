@@ -11,9 +11,9 @@ interface AIPanelProps {
   onEditAnnotation: (line: number) => void;
 }
 
-export function AIPanel({ 
-  isVisible, 
-  onToggle, 
+export function AIPanel({
+  isVisible,
+  onToggle,
   annotations,
   onAnnotationClick,
   onAcceptAnnotation,
@@ -34,6 +34,7 @@ export function AIPanel({
   };
 
   const handleEdit = (annotation: Annotation) => {
+    // open edit modal via the parent
     onEditAnnotation(annotation.line);
     scrollToLine(annotation.line);
   };
@@ -44,8 +45,8 @@ export function AIPanel({
 
   if (!isVisible) {
     return (
-      <div 
-        className="h-[30px] bg-[#252526] border-t border-[#1e1e1e] flex items-center px-3 cursor-pointer hover:bg-[#2a2d2e] transition-colors" 
+      <div
+        className="h-[30px] bg-[#252526] border-t border-[#1e1e1e] flex items-center px-3 cursor-pointer hover:bg-[#2a2d2e] transition-colors"
         onClick={onToggle}
       >
         <ChevronUp size={14} className="text-[#cccccc] mr-2" />
@@ -78,7 +79,7 @@ export function AIPanel({
           </button>
         </div>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {annotations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-[#858585]">
@@ -109,7 +110,7 @@ export function AIPanel({
                 <button
                   onClick={() => handleEdit(annotation)}
                   className="px-3 py-1 bg-[#5a5a5a] hover:bg-[#6a6a6a] text-white text-xs rounded transition-colors"
-                  title="Mark as edited (will implement manually)"
+                  title="Edit this suggestion"
                 >
                   Edit
                 </button>
@@ -124,20 +125,32 @@ export function AIPanel({
             </div>
           ))
         )}
-        
-        {annotations.length > 0 && pendingAnnotations.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-[#858585]">
-            <p className="text-xs text-center">All suggestions have been reviewed</p>
-            <p className="text-xs text-center mt-1 text-[#16a34a]">
-              ✓ {annotations.filter(a => a.status === 'accepted').length} accepted
-            </p>
-            {annotations.filter(a => a.status === 'rejected').length > 0 && (
-              <p className="text-xs text-center text-[#ef4444]">
-                ✗ {annotations.filter(a => a.status === 'rejected').length} rejected
-              </p>
-            )}
-          </div>
-        )}
+
+  {annotations.length > 0 && pendingAnnotations.length === 0 && (
+  <div className="flex flex-col items-center justify-center h-full text-[#858585]">
+    <p className="text-xs text-center">All suggestions have been reviewed</p>
+
+    {/* Accepted */}
+    <p className="text-xs text-center mt-1 text-[#16a34a]">
+      ✓ {annotations.filter(a => a.status === 'accepted').length} accepted
+    </p>
+
+    {/* Rejected */}
+    {annotations.filter(a => a.status === 'rejected').length > 0 && (
+      <p className="text-xs text-center text-[#ef4444]">
+        ✗ {annotations.filter(a => a.status === 'rejected').length} rejected
+      </p>
+    )}
+
+    {/* Edited */}
+    {annotations.filter(a => a.status === 'edited').length > 0 && (
+      <p className="text-xs text-center text-[#3b82f6]">
+        ✎ {annotations.filter(a => a.status === 'edited').length} edited
+      </p>
+    )}
+  </div>
+)}
+
       </div>
     </div>
   );
