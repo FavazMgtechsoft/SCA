@@ -33,13 +33,13 @@ export function Toolbar({
       
       {/* Right side - Action buttons */}
       <div className="flex items-center gap-2">
-        <button
+        {/* <button
           className="flex items-center gap-2 px-3 py-1.5 text-sm text-white hover:bg-[#2d3139] rounded transition-colors"
           title="Run Analysis"
         >
           <Play size={16} />
           <span>Run Analysis</span>
-        </button>
+        </button> */}
         
         <button
           onClick={onGenerateAnnotations}
@@ -66,22 +66,22 @@ export function Toolbar({
           )}
         </button>
         
-        <button
+        {/* <button
           className="flex items-center gap-2 px-3 py-1.5 text-sm text-white hover:bg-[#2d3139] rounded transition-colors"
           title="Refine"
         >
           <Wand2 size={16} />
           <span>Refine</span>
-        </button>
+        </button> */}
         
-        <button
+        {/* <button
           onClick={onOpenFile}
           className="flex items-center gap-2 px-3 py-1.5 text-sm text-white bg-[#2563eb] hover:bg-[#1d4ed8] rounded transition-colors"
           title="Export"
         >
           <Upload size={16} />
           <span>Export</span>
-        </button>
+        </button> */}
         
         <div className="w-px h-6 bg-[#2d3139] mx-1"></div>
         
@@ -95,7 +95,7 @@ export function Toolbar({
           <FolderOpen size={18} className="text-white" />
         </button>
         
-        <button
+        {/* <button
           className="p-2 rounded hover:bg-[#2d3139] transition-colors"
           title="Search"
         >
@@ -107,7 +107,7 @@ export function Toolbar({
           title="Settings"
         >
           <Settings size={18} className="text-white" />
-        </button>
+        </button> */}
       </div>
     </div>
   );

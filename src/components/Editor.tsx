@@ -78,21 +78,19 @@ export function Editor({
           options: {
             isWholeLine: true,
             className: 'accepted-line-highlight',
-            glyphMarginClassName: annotation.status === 'accepted' ? 'accepted-glyph-margin' : 'suggestion-glyph-margin',
-            afterContentClassName: annotation.status === 'accepted' ? 'accepted-annotation-badge' : undefined
+            glyphMarginClassName: annotation.status === 'accepted' ? 'accepted-glyph-margin' : 'edited-glyph-margin',
+            afterContentClassName: annotation.status === 'accepted' ? 'accepted-annotation-badge' : 'edited-annotation-badge'
           }
         });
 
-        // keep a glyph margin badge for accepted as before (adds check)
-        if (annotation.status === 'accepted') {
-          newDecorations.push({
-            range: new monacoRef.current.Range(lineNumber, 1, lineNumber, 1),
-            options: {
-              isWholeLine: false,
-              glyphMarginClassName: 'accepted-glyph-margin'
-            }
-          });
-        }
+        // keep a glyph margin badge for accepted/edited
+        newDecorations.push({
+          range: new monacoRef.current.Range(lineNumber, 1, lineNumber, 1),
+          options: {
+            isWholeLine: false,
+            glyphMarginClassName: annotation.status === 'accepted' ? 'accepted-glyph-margin' : 'edited-glyph-margin'
+          }
+        });
       } else if (annotation.status === 'rejected') {
         // optionally mark rejected with subtle decoration (no special BG)
         newDecorations.push({
@@ -175,7 +173,7 @@ export function Editor({
       }
       
       .accepted-annotation-badge::after {
-        content: ' [EDITED]';
+        content: ' [ACCEPTED]';
         color: #16a34a;
         font-size: 11px;
         font-weight: bold;
@@ -185,9 +183,35 @@ export function Editor({
         border-radius: 3px;
       }
 
+      .edited-glyph-margin {
+        background: transparent !important;
+        width: 16px !important;
+        margin-left: 0px;
+      }
+      
+      .edited-glyph-margin::before {
+        content: '✎';
+        color: #3b82f6;
+        font-size: 14px;
+        font-weight: bold;
+        position: absolute;
+        left: 2px;
+      }
+      
+      .edited-annotation-badge::after {
+        content: ' [EDITED]';
+        color: #3b82f6;
+        font-size: 11px;
+        font-weight: bold;
+        margin-left: 8px;
+        background: rgba(59, 130, 246, 0.1);
+        padding: 2px 6px;
+        border-radius: 3px;
+      }
+
       /* NEW: whole-line highlight for accepted / edited */
       .accepted-line-highlight {
-background: rgba(20, 149, 255, 1) !important; 
+        background: rgba(34, 123, 224, 0.73) !important; 
       }
 
       .rejected-glyph-margin::before {
@@ -314,7 +338,7 @@ background: rgba(20, 149, 255, 1) !important;
           </div>
 
           <div className="bg-[#1e1e1e] border border-[#3e3e42] rounded p-2 mb-3">
-            <code className="text-xs text-[red] font-mono break-all">
+            <code className="text-xs text-[#d4d4d4] font-mono break-all">
               {tooltip.suggestion}
             </code>
           </div>

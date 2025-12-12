@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
-import { Toolbar } from './components/Toolbar';
-import { Sidebar } from './components/Sidebar';
-import { TabBar } from './components/TabBar';
-import { Editor } from './components/Editor';
-import { AIPanel } from './components/AIPanel';
-import { StatusBar } from './components/StatusBar';
+import { useState, useEffect } from "react";
+import { Toolbar } from "./components/Toolbar";
+import { Sidebar } from "./components/Sidebar";
+import { TabBar } from "./components/TabBar";
+import { Editor } from "./components/Editor";
+import { AIPanel } from "./components/AIPanel";
+import { StatusBar } from "./components/StatusBar";
 
 export interface FileNode {
   name: string;
   path: string;
-  type: 'file' | 'folder';
+  type: "file" | "folder";
   children?: FileNode[];
   handle?: FileSystemFileHandle;
 }
@@ -24,7 +24,7 @@ export interface OpenFile {
 export interface Annotation {
   line: number;
   suggestion: string;
-  status: 'pending' | 'accepted' | 'rejected' | 'edited';
+  status: "pending" | "accepted" | "rejected" | "edited";
 }
 
 export default function App() {
@@ -38,30 +38,55 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Edit modal state:
-  const [editModal, setEditModal] = useState<{ visible: boolean; line: number | null; suggestion: string }>({
+  const [editModal, setEditModal] = useState<{
+    visible: boolean;
+    line: number | null;
+    suggestion: string;
+  }>({
     visible: false,
     line: null,
-    suggestion: ''
+    suggestion: "",
   });
 
   // Mock annotations data
   const mockAnnotations: Annotation[] = [
-    { line: 3, suggestion: '__ASTREE_octagon_pack(wheel_speed_fl, wheel_speed_fr, max_ws, vehicle_speed---------);', status: 'pending' },
-    { line: 8, suggestion: '__ASTREE_assert(vehicle_speed - max_ws >= -10);', status: 'pending' },
-    { line: 14, suggestion: '__ASTREE_assert(max_ws - wheel_speed_fl >= 0);', status: 'pending' },
-    { line: 19, suggestion: '__ASTREE_assert(max_ws - wheel_speed_fr >= 0);', status: 'pending' },
-    { line: 24, suggestion: '__ASTREE_assert(vehicle_speed - max_ws <= 5);', status: 'pending' }
+    {
+      line: 3,
+      suggestion:
+        "__ASTREE_octagon_pack(wheel_speed_fl, wheel_speed_fr, max_ws, vehicle_speed);",
+      status: "pending",
+    },
+    {
+      line: 8,
+      suggestion: "__ASTREE_assert(vehicle_speed - max_ws >= -10);",
+      status: "pending",
+    },
+    {
+      line: 14,
+      suggestion: "__ASTREE_assert(max_ws - wheel_speed_fl >= 0);",
+      status: "pending",
+    },
+    {
+      line: 19,
+      suggestion: "__ASTREE_assert(max_ws - wheel_speed_fr >= 0);",
+      status: "pending",
+    },
+    {
+      line: 24,
+      suggestion: "__ASTREE_assert(vehicle_speed - max_ws <= 5);",
+      status: "pending",
+    },
   ];
 
   useEffect(() => {
-    const savedOpenFiles = localStorage.getItem('openFiles');
-    const savedActiveFile = localStorage.getItem('activeFile');
+    const savedOpenFiles = localStorage.getItem("openFiles");
+    const savedActiveFile = localStorage.getItem("activeFile");
 
     if (savedOpenFiles) {
       try {
         setOpenFiles(JSON.parse(savedOpenFiles));
       } catch (e) {
-        console.error('Failed to parse saved files', e);
+        console.error("Failed to parse saved files", e);
       }
     }
 
@@ -72,27 +97,32 @@ export default function App() {
 
   useEffect(() => {
     if (openFiles.length > 0) {
-      localStorage.setItem('openFiles', JSON.stringify(openFiles.map(f => ({
-        path: f.path,
-        name: f.name,
-        content: f.content
-      }))));
+      localStorage.setItem(
+        "openFiles",
+        JSON.stringify(
+          openFiles.map((f) => ({
+            path: f.path,
+            name: f.name,
+            content: f.content,
+          }))
+        )
+      );
     } else {
-      localStorage.removeItem('openFiles');
+      localStorage.removeItem("openFiles");
     }
   }, [openFiles]);
 
   useEffect(() => {
     if (activeFilePath) {
-      localStorage.setItem('activeFile', activeFilePath);
+      localStorage.setItem("activeFile", activeFilePath);
     } else {
-      localStorage.removeItem('activeFile');
+      localStorage.removeItem("activeFile");
     }
   }, [activeFilePath]);
 
   const handleGenerateAnnotations = () => {
     if (!activeFilePath) {
-      alert('Please open a file first');
+      alert("Please open a file first");
       return;
     }
 
@@ -110,90 +140,96 @@ export default function App() {
   };
 
   const handleAcceptAnnotation = (line: number) => {
-    const annotation = annotations.find(ann => ann.line === line);
+    const annotation = annotations.find((ann) => ann.line === line);
     if (!annotation) return;
 
     // Find the file and update its content with the suggestion
-    const file = openFiles.find(f => f.path === activeFilePath);
+    const file = openFiles.find((f) => f.path === activeFilePath);
     if (file) {
-      const lines = file.content.split('\n');
-      // Insert the suggestion at the specified line
-      lines.splice(line - 1, 0, '    ' + annotation.suggestion);
-      const newContent = lines.join('\n');
+      const lines = file.content.split("\n");
+      // Replace the line at the specified position with the suggestion
+      lines[line - 1] = "    " + annotation.suggestion;
+      const newContent = lines.join("\n");
 
       handleContentChange(activeFilePath!, newContent);
     }
 
     // Mark annotation as accepted
-    setAnnotations(annotations.map(ann =>
-      ann.line === line ? { ...ann, status: 'accepted' } : ann
-    ));
+    setAnnotations(
+      annotations.map((ann) =>
+        ann.line === line ? { ...ann, status: "accepted" } : ann
+      )
+    );
   };
 
   const handleRejectAnnotation = (line: number) => {
-    setAnnotations(annotations.map(ann =>
-      ann.line === line ? { ...ann, status: 'rejected' } : ann
-    ));
+    setAnnotations(
+      annotations.map((ann) =>
+        ann.line === line ? { ...ann, status: "rejected" } : ann
+      )
+    );
   };
 
   // New: open edit modal for annotation line
   const handleEditAnnotation = (line: number) => {
-    const annotation = annotations.find(a => a.line === line);
+    const annotation = annotations.find((a) => a.line === line);
     if (!annotation) return;
 
     setEditModal({
       visible: true,
       line: annotation.line,
-      suggestion: annotation.suggestion
+      suggestion: annotation.suggestion,
     });
   };
 
   // New: save edited suggestion from modal
-const saveEditedAnnotation = () => {
-  if (editModal.line === null) return;
+  const saveEditedAnnotation = () => {
+    if (editModal.line === null) return;
 
-  const line = editModal.line;
+    const line = editModal.line;
 
-  // update file content with edited suggestion
-  const file = openFiles.find(f => f.path === activeFilePath);
-  if (file) {
-    const lines = file.content.split('\n');
+    // update file content with edited suggestion
+    const file = openFiles.find((f) => f.path === activeFilePath);
+    if (file) {
+      const lines = file.content.split("\n");
 
-    // Insert edited suggestion into code (same as Accept)
-    lines.splice(line - 1, 0, '    ' + editModal.suggestion);
+      // Replace the line at the specified position with edited suggestion
+      lines[line - 1] = "    " + editModal.suggestion;
 
-    handleContentChange(activeFilePath!, lines.join('\n'));
-  }
+      handleContentChange(activeFilePath!, lines.join("\n"));
+    }
 
-  // update annotation
-  setAnnotations(prev =>
-    prev.map(a =>
-      a.line === line
-        ? { ...a, suggestion: editModal.suggestion, status: 'edited' }
-        : a
-    )
-  );
+    // update annotation
+    setAnnotations((prev) =>
+      prev.map((a) =>
+        a.line === line
+          ? { ...a, suggestion: editModal.suggestion, status: "edited" }
+          : a
+      )
+    );
 
-  setEditModal({ visible: false, line: null, suggestion: '' });
-};
-
+    setEditModal({ visible: false, line: null, suggestion: "" });
+  };
 
   const cancelEditAnnotation = () => {
-    setEditModal({ visible: false, line: null, suggestion: '' });
+    setEditModal({ visible: false, line: null, suggestion: "" });
   };
 
   const handleFolderImport = async () => {
     try {
       // @ts-ignore
-      if (typeof window.showDirectoryPicker === 'function' && window.self === window.top) {
+      if (
+        typeof window.showDirectoryPicker === "function" &&
+        window.self === window.top
+      ) {
         try {
           // @ts-ignore
           const dirHandle = await window.showDirectoryPicker();
-          const folderTree = await buildFolderTree(dirHandle, '');
+          const folderTree = await buildFolderTree(dirHandle, "");
           setRootFolder(folderTree);
           return;
         } catch (e: any) {
-          if (e.name === 'AbortError') {
+          if (e.name === "AbortError") {
             return;
           }
         }
@@ -201,14 +237,14 @@ const saveEditedAnnotation = () => {
 
       useFallbackFolderImport();
     } catch (error) {
-      console.error('Error importing folder:', error);
-      alert('Error importing folder: ' + (error as Error).message);
+      console.error("Error importing folder:", error);
+      alert("Error importing folder: " + (error as Error).message);
     }
   };
 
   const useFallbackFolderImport = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
+    const input = document.createElement("input");
+    input.type = "file";
     // @ts-ignore
     input.webkitdirectory = true;
     input.multiple = true;
@@ -226,12 +262,12 @@ const saveEditedAnnotation = () => {
 
   const buildFolderTreeFromFiles = (files: File[]): FileNode => {
     const firstPath = (files[0] as any).webkitRelativePath || files[0].name;
-    const rootName = firstPath.split('/')[0] || 'project';
+    const rootName = firstPath.split("/")[0] || "project";
 
     const root: FileNode = {
       name: rootName,
       path: rootName,
-      type: 'folder',
+      type: "folder",
       children: [],
     };
 
@@ -240,7 +276,7 @@ const saveEditedAnnotation = () => {
 
     files.forEach((file: any) => {
       const relativePath = file.webkitRelativePath || file.name;
-      const parts = relativePath.split('/');
+      const parts = relativePath.split("/");
 
       let currentPath = rootName;
       for (let i = 1; i < parts.length - 1; i++) {
@@ -251,7 +287,7 @@ const saveEditedAnnotation = () => {
           const folderNode: FileNode = {
             name: folderName,
             path: folderPath,
-            type: 'folder',
+            type: "folder",
             children: [],
           };
 
@@ -271,7 +307,7 @@ const saveEditedAnnotation = () => {
       const fileNode: FileNode = {
         name: fileName,
         path: filePath,
-        type: 'file',
+        type: "file",
       };
 
       (fileNode as any).fileObject = file;
@@ -286,7 +322,7 @@ const saveEditedAnnotation = () => {
       if (node.children) {
         node.children.sort((a, b) => {
           if (a.type === b.type) return a.name.localeCompare(b.name);
-          return a.type === 'folder' ? -1 : 1;
+          return a.type === "folder" ? -1 : 1;
         });
         node.children.forEach(sortChildren);
       }
@@ -300,32 +336,37 @@ const saveEditedAnnotation = () => {
     dirHandle: FileSystemDirectoryHandle,
     parentPath: string
   ): Promise<FileNode> => {
-    const path = parentPath ? `${parentPath}/${dirHandle.name}` : dirHandle.name;
+    const path = parentPath
+      ? `${parentPath}/${dirHandle.name}`
+      : dirHandle.name;
     const children: FileNode[] = [];
 
     for await (const entry of dirHandle.values()) {
-      if (entry.kind === 'file') {
+      if (entry.kind === "file") {
         children.push({
           name: entry.name,
           path: `${path}/${entry.name}`,
-          type: 'file',
+          type: "file",
           handle: entry as FileSystemFileHandle,
         });
-      } else if (entry.kind === 'directory') {
-        const subFolder = await buildFolderTree(entry as FileSystemDirectoryHandle, path);
+      } else if (entry.kind === "directory") {
+        const subFolder = await buildFolderTree(
+          entry as FileSystemDirectoryHandle,
+          path
+        );
         children.push(subFolder);
       }
     }
 
     children.sort((a, b) => {
       if (a.type === b.type) return a.name.localeCompare(b.name);
-      return a.type === 'folder' ? -1 : 1;
+      return a.type === "folder" ? -1 : 1;
     });
 
     return {
       name: dirHandle.name,
       path,
-      type: 'folder',
+      type: "folder",
       children,
     };
   };
@@ -333,7 +374,10 @@ const saveEditedAnnotation = () => {
   const handleFileImport = async () => {
     try {
       // @ts-ignore
-      if (typeof window.showOpenFilePicker === "function" && window.self === window.top) {
+      if (
+        typeof window.showOpenFilePicker === "function" &&
+        window.self === window.top
+      ) {
         try {
           // @ts-ignore
           const [handle] = await window.showOpenFilePicker({
@@ -341,9 +385,9 @@ const saveEditedAnnotation = () => {
             types: [
               {
                 description: "C / C++ Source Files",
-                accept: { "text/*": [".c", ".cpp", ".h", ".hpp"] }
-              }
-            ]
+                accept: { "text/*": [".c", ".cpp", ".h", ".hpp"] },
+              },
+            ],
           });
 
           const file = await handle.getFile();
@@ -353,7 +397,7 @@ const saveEditedAnnotation = () => {
             name: file.name,
             path: file.name,
             type: "file",
-            handle: handle
+            handle: handle,
           };
 
           if (!rootFolder) {
@@ -361,12 +405,12 @@ const saveEditedAnnotation = () => {
               name: "Project",
               path: "Project",
               type: "folder",
-              children: [fileNode]
+              children: [fileNode],
             });
           } else {
             setRootFolder({
               ...rootFolder,
-              children: [...(rootFolder.children || []), fileNode]
+              children: [...(rootFolder.children || []), fileNode],
             });
           }
 
@@ -378,7 +422,6 @@ const saveEditedAnnotation = () => {
       }
 
       useFallbackSingleFileImport();
-
     } catch (err) {
       console.error("Error importing file:", err);
       alert("Error importing file: " + (err as Error).message);
@@ -409,12 +452,12 @@ const saveEditedAnnotation = () => {
           name: "Project",
           path: "Project",
           type: "folder",
-          children: [fileNode]
+          children: [fileNode],
         });
       } else {
         setRootFolder({
           ...rootFolder,
-          children: [...(rootFolder.children || []), fileNode]
+          children: [...(rootFolder.children || []), fileNode],
         });
       }
 
@@ -425,7 +468,7 @@ const saveEditedAnnotation = () => {
   };
 
   const handleFileOpen = async (fileNode: FileNode) => {
-    const existingFile = openFiles.find(f => f.path === fileNode.path);
+    const existingFile = openFiles.find((f) => f.path === fileNode.path);
     if (existingFile) {
       setActiveFilePath(fileNode.path);
       return;
@@ -459,29 +502,35 @@ const saveEditedAnnotation = () => {
         setActiveFilePath(fileNode.path);
       }
     } catch (error) {
-      console.error('Error reading file:', error);
+      console.error("Error reading file:", error);
     }
   };
 
   const handleFileClose = (filePath: string) => {
-    const updatedFiles = openFiles.filter(f => f.path !== filePath);
+    const updatedFiles = openFiles.filter((f) => f.path !== filePath);
     setOpenFiles(updatedFiles);
 
     if (activeFilePath === filePath) {
-      setActiveFilePath(updatedFiles.length > 0 ? updatedFiles[updatedFiles.length - 1].path : null);
+      setActiveFilePath(
+        updatedFiles.length > 0
+          ? updatedFiles[updatedFiles.length - 1].path
+          : null
+      );
       // Clear annotations when closing file
       setAnnotations([]);
     }
   };
 
   const handleContentChange = (filePath: string, newContent: string) => {
-    setOpenFiles(openFiles.map(f =>
-      f.path === filePath ? { ...f, content: newContent } : f
-    ));
+    setOpenFiles(
+      openFiles.map((f) =>
+        f.path === filePath ? { ...f, content: newContent } : f
+      )
+    );
   };
 
-  const activeFile = openFiles.find(f => f.path === activeFilePath);
-  const activeFileExtension = activeFile?.name.split('.').pop() || 'c';
+  const activeFile = openFiles.find((f) => f.path === activeFilePath);
+  const activeFileExtension = activeFile?.name.split(".").pop() || "c";
 
   const handleDrop = async (event: React.DragEvent) => {
     event.preventDefault();
@@ -521,7 +570,10 @@ const saveEditedAnnotation = () => {
     if (firstFile) handleFileOpen(firstFile);
   };
 
-  const traverseEntry = async (entry: any, parentPath: string): Promise<FileNode | null> => {
+  const traverseEntry = async (
+    entry: any,
+    parentPath: string
+  ): Promise<FileNode | null> => {
     const fullPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
 
     if (entry.isFile) {
@@ -530,7 +582,7 @@ const saveEditedAnnotation = () => {
           const node: FileNode = {
             name: file.name,
             path: fullPath,
-            type: "file"
+            type: "file",
           };
           (node as any).fileObject = file;
           resolve(node);
@@ -557,13 +609,13 @@ const saveEditedAnnotation = () => {
 
       children.sort((a, b) => {
         if (a.type === b.type) return a.name.localeCompare(b.name);
-        return a.type === 'folder' ? -1 : 1;
+        return a.type === "folder" ? -1 : 1;
       });
 
       return {
         name: entry.name,
         path: fullPath,
-        type: 'folder',
+        type: "folder",
         children,
       };
     }
@@ -573,9 +625,13 @@ const saveEditedAnnotation = () => {
 
   const findFirstCodeFile = (nodes: FileNode[]): FileNode | null => {
     for (const node of nodes) {
-      if (node.type === "file" &&
-        (node.name.endsWith(".c") || node.name.endsWith(".cpp") ||
-          node.name.endsWith(".h") || node.name.endsWith(".hpp"))) {
+      if (
+        node.type === "file" &&
+        (node.name.endsWith(".c") ||
+          node.name.endsWith(".cpp") ||
+          node.name.endsWith(".h") ||
+          node.name.endsWith(".hpp"))
+      ) {
         return node;
       }
       if (node.type === "folder" && node.children) {
@@ -593,7 +649,7 @@ const saveEditedAnnotation = () => {
       onDrop={handleDrop}
     >
       <Toolbar
-        currentFilePath={activeFilePath || ''}
+        currentFilePath={activeFilePath || ""}
         onToggleSidebar={() => setSidebarVisible(!sidebarVisible)}
         sidebarVisible={sidebarVisible}
         onOpenFile={handleFolderImport}
@@ -637,11 +693,80 @@ const saveEditedAnnotation = () => {
             <div className="flex-1 flex items-center justify-center text-[#6a737d]">
               <div className="text-center">
                 <p className="mb-2">No file open</p>
-                <p className="text-sm">Import a folder and select a C/C++ file to start editing</p>
+                <p className="text-sm">
+                  Import a folder and select a C/C++ file to start editing
+                </p>
               </div>
             </div>
           )}
+          {/* Edit Annotation Modal */}
+          {editModal.visible && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div
+                className="absolute inset-0 bg-black/70"
+                onClick={cancelEditAnnotation}
+              ></div>
+              <div
+                className="relative bg-[#1f1f1f] border border-[#3b82f6] rounded-lg shadow-2xl w-[90%] max-w-[600px] p-6 z-60"
+                style={{ width: "98%" }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-semibold text-[#e6e6e6]">
+                    Edit AI Suggestion — Line {editModal.line}
+                  </h3>
+                  <button
+                    onClick={cancelEditAnnotation}
+                    className="text-[#858585] hover:text-white transition-colors p-1 rounded hover:bg-[#3e3e42]"
+                    title="Close"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                      fill="currentColor"
+                    >
+                      <path d="M8 7.293l3.146-3.147a.5.5 0 01.708.708L8.707 8l3.147 3.146a.5.5 0 01-.708.708L8 8.707l-3.146 3.147a.5.5 0 01-.708-.708L7.293 8 4.146 4.854a.5.5 0 01.708-.708L8 7.293z" />
+                    </svg>
+                  </button>
+                </div>
 
+                <textarea
+                  value={editModal.suggestion}
+                  onChange={(e) =>
+                    setEditModal((prev) => ({
+                      ...prev,
+                      suggestion: e.target.value,
+                    }))
+                  }
+                  className="w-full h-48 bg-[#1e1e1e] border border-[#3e3e42] rounded p-3 text-sm font-mono text-[#d4d4d4] resize-none focus:outline-none focus:border-[#3b82f6]"
+                  placeholder="Enter your edited suggestion..."
+                  autoFocus
+                />
+
+                <div
+                  className="flex justify-end gap-2 mt-4"
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: "8px",
+                  }}
+                >
+                  <button
+                    onClick={cancelEditAnnotation}
+                    className="px-3 py-1 bg-[#5a5a5a] hover:bg-[#6a6a6a] text-white text-xs rounded transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveEditedAnnotation}
+                    className="px-3 py-1 bg-[#0e7a0d] hover:bg-[#0f8b0e] text-white text-xs rounded transition-colors"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <AIPanel
             isVisible={aiPanelVisible}
             onToggle={() => setAiPanelVisible(!aiPanelVisible)}
@@ -649,7 +774,7 @@ const saveEditedAnnotation = () => {
             onAnnotationClick={handleAnnotationClick}
             onAcceptAnnotation={handleAcceptAnnotation}
             onRejectAnnotation={handleRejectAnnotation}
-            onEditAnnotation={handleEditAnnotation} // NEW: pass handler to open modal
+            onEditAnnotation={handleEditAnnotation}
           />
         </div>
       </div>
@@ -659,46 +784,6 @@ const saveEditedAnnotation = () => {
         column={cursorPosition.column}
         language={activeFileExtension}
       />
-
-      {/* Edit Annotation Modal */}
-      {editModal.visible && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60" onClick={cancelEditAnnotation}></div>
-          <div className="relative bg-[#1f1f1f] border border-[#2f2f33] rounded-lg shadow-2xl w-[100%] max-w-[100%] p-4 mx-4 z-60">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm text-[#e6e6e6]">Edit AI Suggestion — Line {editModal.line}</h3>
-              <button
-                onClick={cancelEditAnnotation}
-                className="text-[#cfcfcf] hover:text-white p-1 rounded"
-                title="Close"
-              >
-                ✕
-              </button>
-            </div>
-
-            <textarea
-              value={editModal.suggestion}
-              onChange={(e) => setEditModal(prev => ({ ...prev, suggestion: e.target.value }))}
-              className="w-full h-40 bg-[#151515] border border-[#2b2b2f] rounded p-3 text-sm font-mono text-[#e6e6e6] resize-none"
-            />
-
-            <div className="flex justify-end gap-2 mt-3">
-              <button
-                onClick={cancelEditAnnotation}
-                className="px-3 py-1 bg-[#3a3a3a] hover:bg-[#4a4a4a] text-white text-xs rounded"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveEditedAnnotation}
-                className="px-3 py-1 bg-[#0b5ed7] hover:bg-[#0a53b0] text-white text-xs rounded"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
