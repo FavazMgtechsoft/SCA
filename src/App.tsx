@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
-import { Toolbar } from './components/Toolbar';
-import { Sidebar } from './components/Sidebar';
-import { TabBar } from './components/TabBar';
-import { Editor } from './components/Editor';
-import { AIPanel } from './components/AIPanel';
-import { StatusBar } from './components/StatusBar';
+import { useState, useEffect } from "react";
+import { Toolbar } from "./components/Toolbar";
+import { Sidebar } from "./components/Sidebar";
+import { TabBar } from "./components/TabBar";
+import { Editor } from "./components/Editor";
+import { AIPanel } from "./components/AIPanel";
+import { StatusBar } from "./components/StatusBar";
 
 export interface FileNode {
   name: string;
   path: string;
-  type: 'file' | 'folder';
+  type: "file" | "folder";
   children?: FileNode[];
   handle?: FileSystemFileHandle;
 }
@@ -21,6 +21,12 @@ export interface OpenFile {
   handle?: FileSystemFileHandle;
 }
 
+export interface Annotation {
+  line: number;
+  suggestion: string;
+  status: "pending" | "accepted" | "rejected" | "edited";
+}
+
 export default function App() {
   const [rootFolder, setRootFolder] = useState<FileNode | null>(null);
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
@@ -28,169 +34,301 @@ export default function App() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [aiPanelVisible, setAiPanelVisible] = useState(true);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  // Load state from localStorage on mount
+  // Edit modal state:
+  const [editModal, setEditModal] = useState<{
+    visible: boolean;
+    line: number | null;
+    suggestion: string;
+  }>({
+    visible: false,
+    line: null,
+    suggestion: "",
+  });
+
+  // Mock annotations data
+  const mockAnnotations: Annotation[] = [
+    {
+      line: 3,
+      suggestion:
+        "__ASTREE_octagon_pack(wheel_speed_fl, wheel_speed_fr, max_ws, vehicle_speed);",
+      status: "pending",
+    },
+    {
+      line: 8,
+      suggestion: "__ASTREE_assert(vehicle_speed - max_ws >= -10);",
+      status: "pending",
+    },
+    {
+      line: 14,
+      suggestion: "__ASTREE_assert(max_ws - wheel_speed_fl >= 0);",
+      status: "pending",
+    },
+    {
+      line: 19,
+      suggestion: "__ASTREE_assert(max_ws - wheel_speed_fr >= 0);",
+      status: "pending",
+    },
+    {
+      line: 24,
+      suggestion: "__ASTREE_assert(vehicle_speed - max_ws <= 5);",
+      status: "pending",
+    },
+  ];
+
   useEffect(() => {
-    const savedOpenFiles = localStorage.getItem('openFiles');
-    const savedActiveFile = localStorage.getItem('activeFile');
-    
+    const savedOpenFiles = localStorage.getItem("openFiles");
+    const savedActiveFile = localStorage.getItem("activeFile");
+
     if (savedOpenFiles) {
       try {
         setOpenFiles(JSON.parse(savedOpenFiles));
       } catch (e) {
-        console.error('Failed to parse saved files', e);
+        console.error("Failed to parse saved files", e);
       }
     }
-    
+
     if (savedActiveFile) {
       setActiveFilePath(savedActiveFile);
     }
   }, []);
 
-  // Save state to localStorage
   useEffect(() => {
     if (openFiles.length > 0) {
-      localStorage.setItem('openFiles', JSON.stringify(openFiles.map(f => ({
-        path: f.path,
-        name: f.name,
-        content: f.content
-      }))));
+      localStorage.setItem(
+        "openFiles",
+        JSON.stringify(
+          openFiles.map((f) => ({
+            path: f.path,
+            name: f.name,
+            content: f.content,
+          }))
+        )
+      );
     } else {
-      localStorage.removeItem('openFiles');
+      localStorage.removeItem("openFiles");
     }
   }, [openFiles]);
 
   useEffect(() => {
     if (activeFilePath) {
-      localStorage.setItem('activeFile', activeFilePath);
+      localStorage.setItem("activeFile", activeFilePath);
     } else {
-      localStorage.removeItem('activeFile');
+      localStorage.removeItem("activeFile");
     }
   }, [activeFilePath]);
 
+  const handleGenerateAnnotations = () => {
+    if (!activeFilePath) {
+      alert("Please open a file first");
+      return;
+    }
+
+    setIsGenerating(true);
+
+    // Simulate API call
+    setTimeout(() => {
+      setAnnotations(mockAnnotations);
+      setIsGenerating(false);
+    }, 1500);
+  };
+
+  const handleAnnotationClick = (annotation: Annotation) => {
+    // This will be handled by the Editor component
+  };
+
+  const handleAcceptAnnotation = (line: number) => {
+    const annotation = annotations.find((ann) => ann.line === line);
+    if (!annotation) return;
+
+    // Find the file and update its content with the suggestion
+    const file = openFiles.find((f) => f.path === activeFilePath);
+    if (file) {
+      const lines = file.content.split("\n");
+      // Replace the line at the specified position with the suggestion
+      lines[line - 1] = "    " + annotation.suggestion;
+      const newContent = lines.join("\n");
+
+      handleContentChange(activeFilePath!, newContent);
+    }
+
+    // Mark annotation as accepted
+    setAnnotations(
+      annotations.map((ann) =>
+        ann.line === line ? { ...ann, status: "accepted" } : ann
+      )
+    );
+  };
+
+  const handleRejectAnnotation = (line: number) => {
+    setAnnotations(
+      annotations.map((ann) =>
+        ann.line === line ? { ...ann, status: "rejected" } : ann
+      )
+    );
+  };
+
+  // New: open edit modal for annotation line
+  const handleEditAnnotation = (line: number) => {
+    const annotation = annotations.find((a) => a.line === line);
+    if (!annotation) return;
+
+    setEditModal({
+      visible: true,
+      line: annotation.line,
+      suggestion: annotation.suggestion,
+    });
+  };
+
+  // New: save edited suggestion from modal
+  const saveEditedAnnotation = () => {
+    if (editModal.line === null) return;
+
+    const line = editModal.line;
+
+    // update file content with edited suggestion
+    const file = openFiles.find((f) => f.path === activeFilePath);
+    if (file) {
+      const lines = file.content.split("\n");
+
+      // Replace the line at the specified position with edited suggestion
+      lines[line - 1] = "    " + editModal.suggestion;
+
+      handleContentChange(activeFilePath!, lines.join("\n"));
+    }
+
+    // update annotation
+    setAnnotations((prev) =>
+      prev.map((a) =>
+        a.line === line
+          ? { ...a, suggestion: editModal.suggestion, status: "edited" }
+          : a
+      )
+    );
+
+    setEditModal({ visible: false, line: null, suggestion: "" });
+  };
+
+  const cancelEditAnnotation = () => {
+    setEditModal({ visible: false, line: null, suggestion: "" });
+  };
+
   const handleFolderImport = async () => {
     try {
-      // Check if we're in an iframe or if File System Access API is blocked
-      // @ts-ignore - File System Access API
-      if (typeof window.showDirectoryPicker === 'function' && window.self === window.top) {
+      // @ts-ignore
+      if (
+        typeof window.showDirectoryPicker === "function" &&
+        window.self === window.top
+      ) {
         try {
           // @ts-ignore
           const dirHandle = await window.showDirectoryPicker();
-          const folderTree = await buildFolderTree(dirHandle, '');
+          const folderTree = await buildFolderTree(dirHandle, "");
           setRootFolder(folderTree);
           return;
         } catch (e: any) {
-          // If user cancels, don't fall back to file input
-          if (e.name === 'AbortError') {
+          if (e.name === "AbortError") {
             return;
           }
-          // Otherwise fall through to file input method
         }
       }
-      
-      // Fallback: Use traditional file input
+
       useFallbackFolderImport();
     } catch (error) {
-      console.error('Error importing folder:', error);
-      alert('Error importing folder: ' + (error as Error).message);
+      console.error("Error importing folder:", error);
+      alert("Error importing folder: " + (error as Error).message);
     }
   };
 
   const useFallbackFolderImport = () => {
-    // Create a hidden file input element
-    const input = document.createElement('input');
-    input.type = 'file';
-    // @ts-ignore - webkitdirectory is not in TypeScript types
+    const input = document.createElement("input");
+    input.type = "file";
+    // @ts-ignore
     input.webkitdirectory = true;
     input.multiple = true;
-    
+
     input.onchange = async (e: any) => {
       const files = Array.from(e.target.files || []) as File[];
       if (files.length === 0) return;
-      
-      // Build folder tree from files
+
       const folderTree = buildFolderTreeFromFiles(files);
       setRootFolder(folderTree);
     };
-    
+
     input.click();
   };
 
   const buildFolderTreeFromFiles = (files: File[]): FileNode => {
-    // Get the root folder name from the first file's path
     const firstPath = (files[0] as any).webkitRelativePath || files[0].name;
-    const rootName = firstPath.split('/')[0] || 'project';
-    
+    const rootName = firstPath.split("/")[0] || "project";
+
     const root: FileNode = {
       name: rootName,
       path: rootName,
-      type: 'folder',
+      type: "folder",
       children: [],
     };
-    
+
     const folderMap = new Map<string, FileNode>();
     folderMap.set(rootName, root);
-    
-    // Build the tree structure
+
     files.forEach((file: any) => {
       const relativePath = file.webkitRelativePath || file.name;
-      const parts = relativePath.split('/');
-      
-      // Create folder nodes for each part
+      const parts = relativePath.split("/");
+
       let currentPath = rootName;
       for (let i = 1; i < parts.length - 1; i++) {
         const folderName = parts[i];
         const folderPath = `${currentPath}/${folderName}`;
-        
+
         if (!folderMap.has(folderPath)) {
           const folderNode: FileNode = {
             name: folderName,
             path: folderPath,
-            type: 'folder',
+            type: "folder",
             children: [],
           };
-          
+
           const parent = folderMap.get(currentPath);
           if (parent && parent.children) {
             parent.children.push(folderNode);
           }
-          
+
           folderMap.set(folderPath, folderNode);
         }
-        
+
         currentPath = folderPath;
       }
-      
-      // Add the file
+
       const fileName = parts[parts.length - 1];
       const filePath = `${currentPath}/${fileName}`;
       const fileNode: FileNode = {
         name: fileName,
         path: filePath,
-        type: 'file',
+        type: "file",
       };
-      
-      // Store the file object for later reading
+
       (fileNode as any).fileObject = file;
-      
+
       const parent = folderMap.get(currentPath);
       if (parent && parent.children) {
         parent.children.push(fileNode);
       }
     });
-    
-    // Sort all children (folders first, then alphabetically)
+
     const sortChildren = (node: FileNode) => {
       if (node.children) {
         node.children.sort((a, b) => {
           if (a.type === b.type) return a.name.localeCompare(b.name);
-          return a.type === 'folder' ? -1 : 1;
+          return a.type === "folder" ? -1 : 1;
         });
         node.children.forEach(sortChildren);
       }
     };
     sortChildren(root);
-    
+
     return root;
   };
 
@@ -198,313 +336,328 @@ export default function App() {
     dirHandle: FileSystemDirectoryHandle,
     parentPath: string
   ): Promise<FileNode> => {
-    const path = parentPath ? `${parentPath}/${dirHandle.name}` : dirHandle.name;
+    const path = parentPath
+      ? `${parentPath}/${dirHandle.name}`
+      : dirHandle.name;
     const children: FileNode[] = [];
 
     for await (const entry of dirHandle.values()) {
-      if (entry.kind === 'file') {
+      if (entry.kind === "file") {
         children.push({
           name: entry.name,
           path: `${path}/${entry.name}`,
-          type: 'file',
+          type: "file",
           handle: entry as FileSystemFileHandle,
         });
-      } else if (entry.kind === 'directory') {
-        const subFolder = await buildFolderTree(entry as FileSystemDirectoryHandle, path);
+      } else if (entry.kind === "directory") {
+        const subFolder = await buildFolderTree(
+          entry as FileSystemDirectoryHandle,
+          path
+        );
         children.push(subFolder);
       }
     }
 
-    // Sort: folders first, then files
-    children.sort((a, b) => {
-      if (a.type === b.type) return a.name.localeCompare(b.name);
-      return a.type === 'folder' ? -1 : 1;
-    });
-
-    return {
-      name: dirHandle.name,
-      path,
-      type: 'folder',
-      children,
-    };
-  };
-const handleFileImport = async () => {
-  try {
-    // Check native File Picker support
-    // @ts-ignore
-    if (typeof window.showOpenFilePicker === "function" && window.self === window.top) {
-      try {
-        // @ts-ignore
-        const [handle] = await window.showOpenFilePicker({
-          multiple: false,
-          types: [
-            {
-              description: "C / C++ Source Files",
-              accept: { "text/*": [".c", ".cpp", ".h", ".hpp"] }
-            }
-          ]
-        });
-
-        const file = await handle.getFile();
-        const content = await file.text();
-
-        const fileNode: FileNode = {
-          name: file.name,
-          path: file.name,
-          type: "file",
-          handle: handle
-        };
-
-        // If no project exists → create virtual root
-        if (!rootFolder) {
-          setRootFolder({
-            name: "Project",
-            path: "Project",
-            type: "folder",
-            children: [fileNode]
-          });
-        } else {
-          // Add into rootFolder
-          setRootFolder({
-            ...rootFolder,
-            children: [...(rootFolder.children || []), fileNode]
-          });
-        }
-
-        // Open immediately
-        handleFileOpen(fileNode);
-        return;
-      } catch (e: any) {
-        if (e.name === "AbortError") return;
-      }
-    }
-
-    // ---- FALLBACK ----
-    useFallbackSingleFileImport();
-
-  } catch (err) {
-    console.error("Error importing file:", err);
-    alert("Error importing file: " + (err as Error).message);
-  }
-};
-
-const useFallbackSingleFileImport = () => {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".c,.cpp,.h,.hpp";
-
-  input.onchange = async (e: any) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const content = await file.text();
-
-    const fileNode: FileNode = {
-      name: file.name,
-      path: file.name,
-      type: "file",
-    };
-
-    (fileNode as any).fileObject = file;
-
-    // Create virtual root if needed
-    if (!rootFolder) {
-      setRootFolder({
-        name: "Project",
-        path: "Project",
-        type: "folder",
-        children: [fileNode]
-      });
-    } else {
-      setRootFolder({
-        ...rootFolder,
-        children: [...(rootFolder.children || []), fileNode]
-      });
-    }
-
-    handleFileOpen(fileNode);
-  };
-
-  input.click();
-};
-
-  const handleFileOpen = async (fileNode: FileNode) => {
-    // Check if file is already open
-    const existingFile = openFiles.find(f => f.path === fileNode.path);
-    if (existingFile) {
-      setActiveFilePath(fileNode.path);
-      return;
-    }
-
-    // Read file content
-    try {
-      if (fileNode.handle) {
-        const file = await fileNode.handle.getFile();
-        const content = await file.text();
-        
-        const newFile: OpenFile = {
-          path: fileNode.path,
-          name: fileNode.name,
-          content,
-          handle: fileNode.handle,
-        };
-        
-        setOpenFiles([...openFiles, newFile]);
-        setActiveFilePath(fileNode.path);
-      } else if ((fileNode as any).fileObject) {
-        const file = (fileNode as any).fileObject;
-        const content = await file.text();
-        
-        const newFile: OpenFile = {
-          path: fileNode.path,
-          name: fileNode.name,
-          content,
-        };
-        
-        setOpenFiles([...openFiles, newFile]);
-        setActiveFilePath(fileNode.path);
-      }
-    } catch (error) {
-      console.error('Error reading file:', error);
-    }
-  };
-
-  const handleFileClose = (filePath: string) => {
-    const updatedFiles = openFiles.filter(f => f.path !== filePath);
-    setOpenFiles(updatedFiles);
-    
-    if (activeFilePath === filePath) {
-      setActiveFilePath(updatedFiles.length > 0 ? updatedFiles[updatedFiles.length - 1].path : null);
-    }
-  };
-
-  const handleContentChange = (filePath: string, newContent: string) => {
-    setOpenFiles(openFiles.map(f => 
-      f.path === filePath ? { ...f, content: newContent } : f
-    ));
-  };
-
-  const activeFile = openFiles.find(f => f.path === activeFilePath);
-  const activeFileExtension = activeFile?.name.split('.').pop() || 'c';
-  const handleDrop = async (event: React.DragEvent) => {
-  event.preventDefault();
-
-  const items = event.dataTransfer.items;
-  if (!items || items.length === 0) return;
-
-  const entries: any[] = [];
-
-  for (let i = 0; i < items.length; i++) {
-    // @ts-ignore - webkitGetAsEntry
-    const entry = items[i].webkitGetAsEntry();
-    if (entry) entries.push(entry);
-  }
-
-  const fileNodes: FileNode[] = [];
-
-  // Process each dragged item
-  for (const entry of entries) {
-    const node = await traverseEntry(entry, "");
-    if (node) fileNodes.push(node);
-  }
-
-  if (fileNodes.length === 0) return;
-
-  // If dragging a single folder or file
-  if (fileNodes.length === 1 && fileNodes[0].type === "folder") {
-    setRootFolder(fileNodes[0]);
-  } else {
-    // Many files dropped → create virtual root
-    setRootFolder({
-      name: "Project",
-      path: "Project",
-      type: "folder",
-      children: fileNodes,
-    });
-  }
-
-  // Auto-open first file if it's a C/C++ file
-  const firstFile = findFirstCodeFile(fileNodes);
-  if (firstFile) handleFileOpen(firstFile);
-};
-const traverseEntry = async (entry: any, parentPath: string): Promise<FileNode | null> => {
-  const fullPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
-
-  if (entry.isFile) {
-    return new Promise<FileNode>((resolve) => {
-      entry.file((file: File) => {
-        const node: FileNode = {
-          name: file.name,
-          path: fullPath,
-          type: "file"
-        };
-        (node as any).fileObject = file; // store for reading
-        resolve(node);
-      });
-    });
-  }
-
-  if (entry.isDirectory) {
-    const children: FileNode[] = [];
-
-    const reader = entry.createReader();
-
-    const readEntries = (): Promise<any[]> =>
-      new Promise((resolve) => reader.readEntries(resolve));
-
-    let batch = await readEntries();
-    while (batch.length > 0) {
-      for (const subEntry of batch) {
-        const child = await traverseEntry(subEntry, fullPath);
-        if (child) children.push(child);
-      }
-      batch = await readEntries();
-    }
-
-    // Sort folders → files
     children.sort((a, b) => {
       if (a.type === b.type) return a.name.localeCompare(b.name);
       return a.type === "folder" ? -1 : 1;
     });
 
     return {
-      name: entry.name,
-      path: fullPath,
+      name: dirHandle.name,
+      path,
       type: "folder",
       children,
     };
-  }
+  };
 
-  return null;
-};
-const findFirstCodeFile = (nodes: FileNode[]): FileNode | null => {
-  for (const node of nodes) {
-    if (node.type === "file" &&
-        (node.name.endsWith(".c") || node.name.endsWith(".cpp") ||
-         node.name.endsWith(".h") || node.name.endsWith(".hpp"))) {
-      return node;
-    }
-    if (node.type === "folder" && node.children) {
-      const found = findFirstCodeFile(node.children);
-      if (found) return found;
-    }
-  }
-  return null;
-};
+  const handleFileImport = async () => {
+    try {
+      // @ts-ignore
+      if (
+        typeof window.showOpenFilePicker === "function" &&
+        window.self === window.top
+      ) {
+        try {
+          // @ts-ignore
+          const [handle] = await window.showOpenFilePicker({
+            multiple: false,
+            types: [
+              {
+                description: "C / C++ Source Files",
+                accept: { "text/*": [".c", ".cpp", ".h", ".hpp"] },
+              },
+            ],
+          });
 
+          const file = await handle.getFile();
+          const content = await file.text();
+
+          const fileNode: FileNode = {
+            name: file.name,
+            path: file.name,
+            type: "file",
+            handle: handle,
+          };
+
+          if (!rootFolder) {
+            setRootFolder({
+              name: "Project",
+              path: "Project",
+              type: "folder",
+              children: [fileNode],
+            });
+          } else {
+            setRootFolder({
+              ...rootFolder,
+              children: [...(rootFolder.children || []), fileNode],
+            });
+          }
+
+          handleFileOpen(fileNode);
+          return;
+        } catch (e: any) {
+          if (e.name === "AbortError") return;
+        }
+      }
+
+      useFallbackSingleFileImport();
+    } catch (err) {
+      console.error("Error importing file:", err);
+      alert("Error importing file: " + (err as Error).message);
+    }
+  };
+
+  const useFallbackSingleFileImport = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".c,.cpp,.h,.hpp";
+
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const content = await file.text();
+
+      const fileNode: FileNode = {
+        name: file.name,
+        path: file.name,
+        type: "file",
+      };
+
+      (fileNode as any).fileObject = file;
+
+      if (!rootFolder) {
+        setRootFolder({
+          name: "Project",
+          path: "Project",
+          type: "folder",
+          children: [fileNode],
+        });
+      } else {
+        setRootFolder({
+          ...rootFolder,
+          children: [...(rootFolder.children || []), fileNode],
+        });
+      }
+
+      handleFileOpen(fileNode);
+    };
+
+    input.click();
+  };
+
+  const handleFileOpen = async (fileNode: FileNode) => {
+    const existingFile = openFiles.find((f) => f.path === fileNode.path);
+    if (existingFile) {
+      setActiveFilePath(fileNode.path);
+      return;
+    }
+
+    try {
+      if (fileNode.handle) {
+        const file = await fileNode.handle.getFile();
+        const content = await file.text();
+
+        const newFile: OpenFile = {
+          path: fileNode.path,
+          name: fileNode.name,
+          content,
+          handle: fileNode.handle,
+        };
+
+        setOpenFiles([...openFiles, newFile]);
+        setActiveFilePath(fileNode.path);
+      } else if ((fileNode as any).fileObject) {
+        const file = (fileNode as any).fileObject;
+        const content = await file.text();
+
+        const newFile: OpenFile = {
+          path: fileNode.path,
+          name: fileNode.name,
+          content,
+        };
+
+        setOpenFiles([...openFiles, newFile]);
+        setActiveFilePath(fileNode.path);
+      }
+    } catch (error) {
+      console.error("Error reading file:", error);
+    }
+  };
+
+  const handleFileClose = (filePath: string) => {
+    const updatedFiles = openFiles.filter((f) => f.path !== filePath);
+    setOpenFiles(updatedFiles);
+
+    if (activeFilePath === filePath) {
+      setActiveFilePath(
+        updatedFiles.length > 0
+          ? updatedFiles[updatedFiles.length - 1].path
+          : null
+      );
+      // Clear annotations when closing file
+      setAnnotations([]);
+    }
+  };
+
+  const handleContentChange = (filePath: string, newContent: string) => {
+    setOpenFiles(
+      openFiles.map((f) =>
+        f.path === filePath ? { ...f, content: newContent } : f
+      )
+    );
+  };
+
+  const activeFile = openFiles.find((f) => f.path === activeFilePath);
+  const activeFileExtension = activeFile?.name.split(".").pop() || "c";
+
+  const handleDrop = async (event: React.DragEvent) => {
+    event.preventDefault();
+
+    const items = event.dataTransfer.items;
+    if (!items || items.length === 0) return;
+
+    const entries: any[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      // @ts-ignore
+      const entry = items[i].webkitGetAsEntry();
+      if (entry) entries.push(entry);
+    }
+
+    const fileNodes: FileNode[] = [];
+
+    for (const entry of entries) {
+      const node = await traverseEntry(entry, "");
+      if (node) fileNodes.push(node);
+    }
+
+    if (fileNodes.length === 0) return;
+
+    if (fileNodes.length === 1 && fileNodes[0].type === "folder") {
+      setRootFolder(fileNodes[0]);
+    } else {
+      setRootFolder({
+        name: "Project",
+        path: "Project",
+        type: "folder",
+        children: fileNodes,
+      });
+    }
+
+    const firstFile = findFirstCodeFile(fileNodes);
+    if (firstFile) handleFileOpen(firstFile);
+  };
+
+  const traverseEntry = async (
+    entry: any,
+    parentPath: string
+  ): Promise<FileNode | null> => {
+    const fullPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+
+    if (entry.isFile) {
+      return new Promise<FileNode>((resolve) => {
+        entry.file((file: File) => {
+          const node: FileNode = {
+            name: file.name,
+            path: fullPath,
+            type: "file",
+          };
+          (node as any).fileObject = file;
+          resolve(node);
+        });
+      });
+    }
+
+    if (entry.isDirectory) {
+      const children: FileNode[] = [];
+
+      const reader = entry.createReader();
+
+      const readEntries = (): Promise<any[]> =>
+        new Promise((resolve) => reader.readEntries(resolve));
+
+      let batch = await readEntries();
+      while (batch.length > 0) {
+        for (const subEntry of batch) {
+          const child = await traverseEntry(subEntry, fullPath);
+          if (child) children.push(child);
+        }
+        batch = await readEntries();
+      }
+
+      children.sort((a, b) => {
+        if (a.type === b.type) return a.name.localeCompare(b.name);
+        return a.type === "folder" ? -1 : 1;
+      });
+
+      return {
+        name: entry.name,
+        path: fullPath,
+        type: "folder",
+        children,
+      };
+    }
+
+    return null;
+  };
+
+  const findFirstCodeFile = (nodes: FileNode[]): FileNode | null => {
+    for (const node of nodes) {
+      if (
+        node.type === "file" &&
+        (node.name.endsWith(".c") ||
+          node.name.endsWith(".cpp") ||
+          node.name.endsWith(".h") ||
+          node.name.endsWith(".hpp"))
+      ) {
+        return node;
+      }
+      if (node.type === "folder" && node.children) {
+        const found = findFirstCodeFile(node.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
 
   return (
-    <div className="flex flex-col h-screen bg-[#1e1e1e] text-[#cccccc] overflow-hidden"
-    onDragOver={(e) => e.preventDefault()}
-    onDrop={handleDrop}
+    <div
+      className="flex flex-col h-screen bg-[#1e1e1e] text-[#cccccc] overflow-hidden"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
     >
       <Toolbar
-        currentFilePath={activeFilePath || ''}
+        currentFilePath={activeFilePath || ""}
         onToggleSidebar={() => setSidebarVisible(!sidebarVisible)}
         sidebarVisible={sidebarVisible}
         onOpenFile={handleFolderImport}
+        onGenerateAnnotations={handleGenerateAnnotations}
+        isGenerating={isGenerating}
+        hasAnnotations={annotations.length > 0}
       />
-      
+
       <div className="flex flex-1 overflow-hidden">
         {sidebarVisible && (
           <Sidebar
@@ -515,7 +668,7 @@ const findFirstCodeFile = (nodes: FileNode[]): FileNode | null => {
             activeFilePath={activeFilePath}
           />
         )}
-        
+
         <div className="flex-1 flex flex-col overflow-hidden">
           {openFiles.length > 0 ? (
             <>
@@ -530,6 +683,9 @@ const findFirstCodeFile = (nodes: FileNode[]): FileNode | null => {
                   file={activeFile}
                   onContentChange={handleContentChange}
                   onCursorChange={setCursorPosition}
+                  annotations={annotations}
+                  onAcceptAnnotation={handleAcceptAnnotation}
+                  onRejectAnnotation={handleRejectAnnotation}
                 />
               )}
             </>
@@ -537,18 +693,92 @@ const findFirstCodeFile = (nodes: FileNode[]): FileNode | null => {
             <div className="flex-1 flex items-center justify-center text-[#6a737d]">
               <div className="text-center">
                 <p className="mb-2">No file open</p>
-                <p className="text-sm">Import a folder and select a C/C++ file to start editing</p>
+                <p className="text-sm">
+                  Import a folder and select a C/C++ file to start editing
+                </p>
               </div>
             </div>
           )}
-          
+          {/* Edit Annotation Modal */}
+          {editModal.visible && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div
+                className="absolute inset-0 bg-black/70"
+                onClick={cancelEditAnnotation}
+              ></div>
+              <div
+                className="relative bg-[#1f1f1f] border border-[#3b82f6] rounded-lg shadow-2xl w-[90%] max-w-[600px] p-6 z-60"
+                style={{ width: "98%" }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-semibold text-[#e6e6e6]">
+                    Edit AI Suggestion — Line {editModal.line}
+                  </h3>
+                  <button
+                    onClick={cancelEditAnnotation}
+                    className="text-[#858585] hover:text-white transition-colors p-1 rounded hover:bg-[#3e3e42]"
+                    title="Close"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                      fill="currentColor"
+                    >
+                      <path d="M8 7.293l3.146-3.147a.5.5 0 01.708.708L8.707 8l3.147 3.146a.5.5 0 01-.708.708L8 8.707l-3.146 3.147a.5.5 0 01-.708-.708L7.293 8 4.146 4.854a.5.5 0 01.708-.708L8 7.293z" />
+                    </svg>
+                  </button>
+                </div>
+
+                <textarea
+                  value={editModal.suggestion}
+                  onChange={(e) =>
+                    setEditModal((prev) => ({
+                      ...prev,
+                      suggestion: e.target.value,
+                    }))
+                  }
+                  className="w-full h-48 bg-[#1e1e1e] border border-[#3e3e42] rounded p-3 text-sm font-mono text-[#d4d4d4] resize-none focus:outline-none focus:border-[#3b82f6]"
+                  placeholder="Enter your edited suggestion..."
+                  autoFocus
+                />
+
+                <div
+                  className="flex justify-end gap-2 mt-4"
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: "8px",
+                  }}
+                >
+                  <button
+                    onClick={cancelEditAnnotation}
+                    className="px-3 py-1 bg-[#5a5a5a] hover:bg-[#6a6a6a] text-white text-xs rounded transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveEditedAnnotation}
+                    className="px-3 py-1 bg-[#0e7a0d] hover:bg-[#0f8b0e] text-white text-xs rounded transition-colors"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <AIPanel
             isVisible={aiPanelVisible}
             onToggle={() => setAiPanelVisible(!aiPanelVisible)}
+            annotations={annotations}
+            onAnnotationClick={handleAnnotationClick}
+            onAcceptAnnotation={handleAcceptAnnotation}
+            onRejectAnnotation={handleRejectAnnotation}
+            onEditAnnotation={handleEditAnnotation}
           />
         </div>
       </div>
-      
+
       <StatusBar
         line={cursorPosition.line}
         column={cursorPosition.column}
