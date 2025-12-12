@@ -16,7 +16,7 @@ npm run dev
 
 
 
-# SCA Studio - C/C++ Code Editor
+# SCA Auto Annotation
 
 A fully functional VS Code-style editor specifically designed for C and C++ development.
 

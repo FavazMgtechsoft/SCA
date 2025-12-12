@@ -28,7 +28,7 @@ export function Toolbar({
             <path d="M3 8L6 11L13 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
-        <span className="text-white">SCA Studio Web</span>
+        <span className="text-white">SCA Auto Annotation</span>
       </div>
       
       {/* Right side - Action buttons */}
